@@ -16,17 +16,18 @@ public class Main {
 		boolean endProgram = false;
 
 		boolean correct = false;
-		while (!correct)
-			try {
+		while (!correct) {
+//			try {
 				System.out.println("Enter the IP Address of the OBD: ");
-				obdIpAddress = in.readLine();
+//				obdIpAddress = in.readLine();
 				System.out.println("Enter the specified port: ");
-				obdPort = Integer.parseInt(in.readLine());
-				obdr = new OBDReader(obdIpAddress, obdPort);
+//				obdPort = Integer.parseInt(in.readLine());
+				obdr = new OBDReader("192.168.0.10", 35000);
 				correct = true;
-			} catch (IOException e) {
-				System.out.println("Please, enter the input correctly. Example\n- IP: 192.168.X.XX\n- Port: 0000");
-			}
+//			} catch (IOException e) {
+//				System.out.println("Please, enter the input correctly. Example\n- IP: 192.168.X.XX\n- Port: 0000");
+//			}
+		}
 
 		if (obdr != null) {
 			obdr.connectToCar();
