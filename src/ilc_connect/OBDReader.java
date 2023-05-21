@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
@@ -20,24 +21,30 @@ public class OBDReader {
 	private SimpleDateFormat formatter;
 	private Date date;
 	private String logFile;
+	private boolean isConnected;
+	private final byte LF_SEPARATOR = 0x0A;
 
 	OBDReader(String ipAddress, int port) {
 		this.ipAddress = ipAddress;
 		this.port = port;
-		formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");  
-	    date = new Date();
-	    String logFile = "log.txt";
+		formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
+		date = new Date();
+		String logFile = "log.txt";
 		createLogFile(logFile);
 	}
 
 	public void connectToCar() {
 		try {
+			System.out.println("Wait...");
 			// Create a socket connection to the OBD-II reader
 			socket = new Socket(ipAddress, port);
 
 			// Create output and input streams for communication
-			outputWriter = new PrintWriter(socket.getOutputStream(), true);
+			outputWriter = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()));
 			inputReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+//			inputReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+//			outputWriter = new DataOutputStream(socket.getOutputStream());
 
 			// Perform any initialization or configuration here
 
@@ -54,17 +61,24 @@ public class OBDReader {
 		try {
 			// Send the RPM command to the OBD-II reader
 			outputWriter.println("01 0C");
+			outputWriter.flush();
 
 			// Read the response from the OBD-II reader
-			String response = inputReader.readLine();
-			System.out.println(response);
-//			writeToLogFile("[RAW-RPM]" + formatter.format(date) + ": " + response + "\n", logFile);
+//			String response = inputReader.readLine();
 
-			// Extract and process the RPM value from the response
+			String response = "";
+			int ASCIIResponse;
+			while ((ASCIIResponse = inputReader.read()) != LF_SEPARATOR) {
+//				System.out.print((char) ASCIIResponse + "-");
+				response += (char) ASCIIResponse;
+			}
+
+			// Extract and process the RPM value from the response (Only applies to ISO
+			// 9141)
 			String[] responseParts = response.split(" ");
-			System.out.println(Arrays.toString(responseParts));
-			int rpm = Integer.parseInt(responseParts[2], 16) * 256 + Integer.parseInt(responseParts[3], 16);
-//			writeToLogFile("[RPM]" + formatter.format(date) + ": " + response + "\n", logFile);
+			String auxHexAppender = responseParts[3] + responseParts[4];
+			int decimalCode = Integer.parseInt(auxHexAppender, 16);
+			int rpm = decimalCode / 4;
 			return rpm;
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -81,9 +95,14 @@ public class OBDReader {
 		try {
 			// Send the command to retrieve all error codes
 			outputWriter.println("03");
+			outputWriter.flush();
 
 			// Read the response from the OBD-II reader
+			inputReader.readLine();
 			String response = inputReader.readLine();
+
+//			
+
 //			writeToLogFile("[ERROR_CODE]" + formatter.format(date) + ": " + response + "\n", logFile);
 			System.out.println(response);
 			// Check if the response indicates that no error codes are present
