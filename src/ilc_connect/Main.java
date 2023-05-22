@@ -66,6 +66,9 @@ public class Main {
 				System.out.println("RPM: " + obdr.getRPM());
 			}
 			break;
+		case ("SPEED"):
+			System.out.println("Speed: " + obdr.getSpeed());
+			break;
 		case ("ERROR-C"):
 			String[] codes = obdr.getAllErrorCodes();
 			for (String code : codes) {
@@ -79,6 +82,10 @@ public class Main {
 			System.out.println("Please, enter a command");
 		}
 		return endProgram;
+	}
+
+	private static void loopInThread() {
+		// TODO
 	}
 
 }

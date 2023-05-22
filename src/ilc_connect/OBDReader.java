@@ -134,6 +134,39 @@ public class OBDReader {
 
 		return 0; // Default value in case of errors
 	}
+	
+	/**
+	 * Retrieves the speed value from the OBD-II device.
+	 * 
+	 * @return the speed value
+	 */
+	public int getSpeed() {
+		/**
+		 * @param speed The speed of the vehicle or if not found it's default is 0
+		 */
+		int speed = 0;
+		outputWriter.println("01 0D");
+		outputWriter.flush();
+		
+		try {
+			/*
+			 * Removing \r characters from the string in order to keep
+			 * on the array only the things we want
+			 */
+			String[] response = parseRawInput().replaceAll("\r", " ").split(" ");
+			
+			/* 
+			 * To get the speed the OBD-II only sends one byte, so getting
+			 * last index simplifies the code a little bit
+			 */
+			String speedHEX = response[response.length-1];
+			speed = Integer.parseInt(speedHEX, 16);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return speed;
+	}
 
 	/**
 	 * Retrieves all error codes from the OBD-II device.
