@@ -2,6 +2,7 @@ package ilc_connect;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -11,6 +12,13 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 
+/**
+ * The OBDReader class represents a reader for OBD-II devices. It allows
+ * connecting to a car and retrieving various data from the car's onboard
+ * computer.
+ * 
+ * @author nafdez
+ */
 public class OBDReader {
 	private Socket socket;
 	private PrintWriter outputWriter;
@@ -20,22 +28,32 @@ public class OBDReader {
 	private SimpleDateFormat formatter;
 	private Date date;
 	private String logFile;
-	private String logFilePath;
-	private boolean isConnected;
-	private final byte LF_SEPARATOR = 0x0A;
+
+	/*
+	 * OBD-II marks the end of a communication by the character '>'.
+	 */
 	private final int END_COMM = '>';
 
+	/**
+	 * Constructs an OBDReader object with the specified IP address and port.
+	 * 
+	 * @param ipAddress the IP address of the OBD-II device
+	 * @param port      the port number to connect to
+	 */
 	OBDReader(String ipAddress, int port) {
 		this.ipAddress = ipAddress;
 		this.port = port;
 		formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
+		SimpleDateFormat formatterPath = new SimpleDateFormat("dd-MM-yyyy_HH-mm-ss");
 		date = new Date();
-		String logFile = "log.txt";
-		String logFilePath = "./" + logFile;
+		// create dir and file
+		new File("logs").mkdirs();
+		logFile = "logs/" + formatterPath.format(date) + "_log.txt";
+
 		createLogFile(logFile);
 	}
 
-	/*
+	/**
 	 * Makes the connection to the OBD-II Device.
 	 */
 	public void connectToCar() {
@@ -57,11 +75,18 @@ public class OBDReader {
 		}
 	}
 
-	/*
-	 * Read character by character the output of the OBD-II Device until END_COMM
-	 * char is reached '>'. If I just use inputReader.readLine wouldn't work because
-	 * it keeps reading ad infinitum since it isn't a file. '>' is the end of the
-	 * communication because is the OBD-II asking you for new input.
+	/**
+	 * Reads character by character the output of the OBD-II device until the
+	 * END_COMM char is reached (>).
+	 * 
+	 * <p>
+	 * If inputReader.readLine() is used directly, it would keep reading
+	 * indefinitely since it isn't a file. The '>' character indicates the end of
+	 * the communication because it is the OBD-II device asking for new input.
+	 * </p>
+	 * 
+	 * @return the response from the OBD-II device
+	 * @throws IOException if an I/O error occurs while reading the input
 	 */
 	private String parseRawInput() throws IOException {
 		String response = "";
@@ -78,6 +103,11 @@ public class OBDReader {
 	 * 50 41: mode (same as before with 01 code) 01: command (get RPM) 2C 50: by
 	 * joining the last two codes together we get 2C50, that is 11.344 in decimal
 	 * dividing by 4, we obtain a result of 2.836 RPM
+	 */
+	/**
+	 * Retrieves the RPM (Revolutions Per Minute) value from the OBD-II device.
+	 * 
+	 * @return the RPM value
 	 */
 	public int getRPM() {
 		try {
@@ -105,6 +135,12 @@ public class OBDReader {
 		return 0; // Default value in case of errors
 	}
 
+	/**
+	 * Retrieves all error codes from the OBD-II device.
+	 * 
+	 * @return an array of error codes, or an empty array if no error codes are
+	 *         present
+	 */
 	public String[] getAllErrorCodes() {
 		try {
 			// Send the command to retrieve all error codes
@@ -112,8 +148,7 @@ public class OBDReader {
 			outputWriter.flush();
 
 			// Read the response from the OBD-II reader
-			inputReader.readLine();
-			String response = inputReader.readLine();
+			String response = parseRawInput();
 
 			writeToLogFile("[ERROR_CODE]" + formatter.format(date) + ": " + response + "\n", logFile);
 			System.out.println(response);
@@ -136,15 +171,17 @@ public class OBDReader {
 		return null; // Return null in case of errors
 	}
 
-	/*
-	 * Creating a log file in order to keep a track of the info. This gonna be
-	 * useful when doing graphs and intelligent things
+	/**
+	 * Creates a log file with the specified filename.
+	 * 
+	 * @param filename path with filename of the log file
 	 */
 	private void createLogFile(String filename) {
 		try {
-			File myObj = new File(filename);
-			if (myObj.createNewFile()) {
-				System.out.println("File created: " + myObj.getName());
+			File logFile = new File(filename);
+
+			if (logFile.createNewFile()) {
+				System.out.println("File created: " + logFile.getName());
 			} else {
 				System.out.println("File already exists.");
 			}
@@ -153,19 +190,20 @@ public class OBDReader {
 			e.printStackTrace();
 		}
 	}
-
-	/*
-	 * Null Pointer Exception for some reason
+	
+	/**
+	 * Writes a line of text to the specified log file.
+	 * 
+	 * @param line     the line of text to write
+	 * @param filename path with filename of the log file
 	 */
 	private void writeToLogFile(String line, String filename) {
-//		try {
-//			FileWriter myWriter = new FileWriter(filename);
-//			myWriter.write(line);
-//			myWriter.close();
-//		} catch (Exception e) {
-//			System.out.println("An error occurred while writing the file.");
-//			e.printStackTrace();
-//		}
+		try (FileWriter myWriter = new FileWriter(filename, true)) {
+			myWriter.write(line);
+		} catch (Exception e) {
+			System.out.println("An error occurred while writing the file.");
+			e.printStackTrace();
+		}
 	}
 
 }
