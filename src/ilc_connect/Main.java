@@ -9,12 +9,12 @@ public class Main {
 	public static void main(String[] args) {
 		BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
 
-		// PC Development: 127.0.0.1
+		// PC Development (OBD Emulator): 127.0.0.1
 		// Real OBD-II testing: 192.168.0.10
+//		String obdIpAddress = "192.168.0.10";
 		String obdIpAddress = "127.0.0.1";
 		int obdPort = 35000;
 		OBDReader obdr = null;
-		boolean endProgram = false;
 
 		boolean correct = false;
 		while (!correct) {
@@ -36,7 +36,7 @@ public class Main {
 			obdr.connectToCar();
 			try {
 				// Waits till user enter "END" command.
-				while (!commandInterpreter(obdr, in.readLine()))
+				while (!commandInterpreter(obdr, in.readLine().toUpperCase()))
 					;
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -56,23 +56,35 @@ public class Main {
 			// If a parameter "LOOP" encountered on RPM command, keep reading RPM on a new
 			// Thread
 			if (commandTrimmed.length > 1 && commandTrimmed[1].equals("LOOP")) {
-				OBDReader obdr2 = obdr;
-				new Thread(() -> {
-					while (true) {
-						System.out.println("RPM: " + obdr2.getRPM());
-					}
-				}).start();
+				loopInThread(obdr, commandTrimmed[0], 500);
 			} else {
 				System.out.println("RPM: " + obdr.getRPM());
 			}
 			break;
 		case ("SPEED"):
-			System.out.println("Speed: " + obdr.getSpeed());
+			if (commandTrimmed.length > 1 && commandTrimmed[1].equals("LOOP")) {
+				loopInThread(obdr, commandTrimmed[0], 500);
+			} else {
+				System.out.println("Speed: " + obdr.getSpeed());
+			}
 			break;
 		case ("ERROR-C"):
 			String[] codes = obdr.getAllErrorCodes();
 			for (String code : codes) {
 				System.out.println(code);
+			}
+			break;
+		case ("TEST"):
+			if (commandTrimmed.length > 1) {
+				try {
+					for (String str : obdr.testODB(commandTrimmed[1])) {
+						System.out.print(str + " ");
+					}
+					System.out.println("\n");
+				} catch (IOException e) {
+					System.out.println(
+							"An error occurred. Please check your command or connection.\nHINT: \n\t- test 010C\n\t- test ATZ");
+				}
 			}
 			break;
 		case ("END"):
@@ -84,8 +96,27 @@ public class Main {
 		return endProgram;
 	}
 
-	private static void loopInThread() {
-		// TODO
+	/**
+	 * 
+	 * @param obdr
+	 * @param cmd
+	 * @param times
+	 */
+	private static void loopInThread(OBDReader obdr, String cmd, int times) {
+		// TODO: Add duration tweak and a stop command
+		new Thread(() -> {
+			switch (cmd) {
+			case ("RPM"):
+//				for (int i = 0; i < times; i++) {
+				while (true)
+					System.out.println("RPM: " + obdr.getRPM());
+			case ("SPEED"):
+//				for (int i = 0; i < times; i++) {
+				while (true)
+					System.out.println("SPEED: " + obdr.getSpeed());
+
+			}
+		}).start();
 	}
 
 }

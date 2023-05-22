@@ -9,7 +9,6 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Date;
 
 /**
@@ -28,6 +27,9 @@ public class OBDReader {
 	private SimpleDateFormat formatter;
 	private Date date;
 	private String logFile;
+	private int LF_ASCII = 10;
+	private int CR_ASCII = 13;
+	private String deviceName;
 
 	/*
 	 * OBD-II marks the end of a communication by the character '>'.
@@ -66,10 +68,17 @@ public class OBDReader {
 			outputWriter = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()));
 			inputReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
+			// Test connection
+			outputWriter.println(ICCommand.RESET);
+			outputWriter.flush();
+
+			deviceName = parseRawInput(ICCommand.RESET);
+			System.out.println("Device: " + deviceName);
+
 			// Connection successful, ready to communicate with the car
 			System.out.println("Connected to the car.");
-			writeToLogFile("[CONNECTION]" + formatter.format(date) + ": [IP_" + ipAddress + "][PORT_" + port + "]\n",
-					logFile);
+			writeToLogFile("[CONNECTION]" + formatter.format(date) + ": [IP_" + ipAddress + "][PORT_" + port
+					+ "][DEVICE_" + deviceName + "]\n", logFile);
 		} catch (IOException e) {
 			System.out.println("Unable to connect to OBD Scanner, please, check IP and port.");
 		}
@@ -88,13 +97,33 @@ public class OBDReader {
 	 * @return the response from the OBD-II device
 	 * @throws IOException if an I/O error occurs while reading the input
 	 */
-	private String parseRawInput() throws IOException {
+	private String parseRawInput(String code) throws IOException {
+		String response = "";
+		int ASCIIResponse;
+
+		while ((ASCIIResponse = inputReader.read()) != END_COMM) {
+			response += (char) ASCIIResponse;
+		}
+
+		// Deleting all CRLF characters to sanitize the input
+		response = response.replaceAll(Character.toString(LF_ASCII), "").replaceAll(Character.toString(CR_ASCII), "");
+
+		writeToLogFile("[" + code + "_RAW] " + formatter.format(date) + " RCV: ", logFile);
+		return response.substring(code.length());
+	}
+
+	private String[] parseArrayRawInput(String pidCode) throws IOException {
 		String response = "";
 		int ASCIIResponse;
 		while ((ASCIIResponse = inputReader.read()) != END_COMM) {
 			response += (char) ASCIIResponse;
 		}
-		return response;
+
+		response = response.replaceAll(Character.toString(LF_ASCII), "").replaceAll(Character.toString(CR_ASCII), "");
+
+		String[] responseParts = response.substring(pidCode.length()).split(" ");
+
+		return responseParts;
 	}
 
 	/*
@@ -112,19 +141,18 @@ public class OBDReader {
 	public int getRPM() {
 		try {
 			// Send the RPM command to the OBD-II reader
-			outputWriter.println("01 0C");
+			outputWriter.println(PIDCode.RPM);
 			outputWriter.flush();
 
 			// Read the response from the OBD-II reader
-			String response = parseRawInput();
+			String response = parseRawInput(PIDCode.RPM);
 
 			// Extract and process the RPM value from the response (Only applies to ISO
 			// 9141)
 			String[] responseParts = response.split(" ");
-			String auxHexAppender = responseParts[3] + responseParts[4];
+			String auxHexAppender = responseParts[2] + responseParts[3];
 			int decimalCode = Integer.parseInt(auxHexAppender, 16);
 			int rpm = decimalCode / 4;
-			writeToLogFile("[RPM-RAW]" + formatter.format(date) + ": " + response + "\n", logFile);
 			writeToLogFile("[RPM]" + formatter.format(date) + ": " + rpm + "\n", logFile);
 			return rpm;
 		} catch (IOException e) {
@@ -134,7 +162,7 @@ public class OBDReader {
 
 		return 0; // Default value in case of errors
 	}
-	
+
 	/**
 	 * Retrieves the speed value from the OBD-II device.
 	 * 
@@ -145,21 +173,17 @@ public class OBDReader {
 		 * @param speed The speed of the vehicle or if not found it's default is 0
 		 */
 		int speed = 0;
-		outputWriter.println("01 0D");
+		outputWriter.println(PIDCode.SPEED);
 		outputWriter.flush();
-		
+
 		try {
+			String[] response = parseArrayRawInput(PIDCode.SPEED);
+
 			/*
-			 * Removing \r characters from the string in order to keep
-			 * on the array only the things we want
+			 * To get the speed the OBD-II only sends one byte, so getting last index
+			 * simplifies the code a little bit
 			 */
-			String[] response = parseRawInput().replaceAll("\r", " ").split(" ");
-			
-			/* 
-			 * To get the speed the OBD-II only sends one byte, so getting
-			 * last index simplifies the code a little bit
-			 */
-			String speedHEX = response[response.length-1];
+			String speedHEX = response[response.length - 1];
 			speed = Integer.parseInt(speedHEX, 16);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -177,11 +201,11 @@ public class OBDReader {
 	public String[] getAllErrorCodes() {
 		try {
 			// Send the command to retrieve all error codes
-			outputWriter.println("01 01");
+			outputWriter.println(PIDCode.DTC);
 			outputWriter.flush();
 
 			// Read the response from the OBD-II reader
-			String response = parseRawInput();
+			String response = parseRawInput(PIDCode.DTC);
 
 			writeToLogFile("[ERROR_CODE]" + formatter.format(date) + ": " + response + "\n", logFile);
 			System.out.println(response);
@@ -194,7 +218,7 @@ public class OBDReader {
 			String[] errorCodes = response.split(" ");
 
 			// Remove the first element, which is the command sent
-			errorCodes = Arrays.copyOfRange(errorCodes, 1, errorCodes.length);
+//			errorCodes = Arrays.copyOfRange(errorCodes, 1, errorCodes.length);
 			return errorCodes;
 		} catch (IOException e) {
 			System.out.println("Error while getting data from OBD-II Reader");
@@ -202,6 +226,13 @@ public class OBDReader {
 		}
 
 		return null; // Return null in case of errors
+	}
+
+	public String[] testODB(String code) throws IOException {
+		outputWriter.println(code);
+		outputWriter.flush();
+
+		return parseArrayRawInput(code);
 	}
 
 	/**
@@ -223,7 +254,7 @@ public class OBDReader {
 			e.printStackTrace();
 		}
 	}
-	
+
 	/**
 	 * Writes a line of text to the specified log file.
 	 * 
