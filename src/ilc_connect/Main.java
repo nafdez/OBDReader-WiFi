@@ -9,8 +9,8 @@ public class Main {
 	public static void main(String[] args) {
 		BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
 
-		String obdIpAddress = null;
-		int obdPort = 0;
+		String obdIpAddress = "127.0.0.1";
+		int obdPort = 35000;
 		OBDReader obdr = null;
 		boolean endProgram = false;
 

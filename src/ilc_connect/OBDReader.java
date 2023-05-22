@@ -23,6 +23,7 @@ public class OBDReader {
 	private String logFile;
 	private boolean isConnected;
 	private final byte LF_SEPARATOR = 0x0A;
+	private final int END_COMM = '>';
 
 	OBDReader(String ipAddress, int port) {
 		this.ipAddress = ipAddress;
@@ -57,6 +58,15 @@ public class OBDReader {
 		}
 	}
 
+	private String parseRawInput() throws IOException {
+		String response = "";
+		int ASCIIResponse;
+		while ((ASCIIResponse = inputReader.read()) != END_COMM) {
+			response += (char) ASCIIResponse;
+		}
+		return response;
+	}
+
 	public int getRPM() {
 		try {
 			// Send the RPM command to the OBD-II reader
@@ -64,14 +74,7 @@ public class OBDReader {
 			outputWriter.flush();
 
 			// Read the response from the OBD-II reader
-//			String response = inputReader.readLine();
-
-			String response = "";
-			int ASCIIResponse;
-			while ((ASCIIResponse = inputReader.read()) != LF_SEPARATOR) {
-//				System.out.print((char) ASCIIResponse + "-");
-				response += (char) ASCIIResponse;
-			}
+			String response = parseRawInput();
 
 			// Extract and process the RPM value from the response (Only applies to ISO
 			// 9141)
@@ -94,7 +97,7 @@ public class OBDReader {
 	public String[] getAllErrorCodes() {
 		try {
 			// Send the command to retrieve all error codes
-			outputWriter.println("03");
+			outputWriter.println("01 01");
 			outputWriter.flush();
 
 			// Read the response from the OBD-II reader
