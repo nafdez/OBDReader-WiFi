@@ -9,6 +9,8 @@ public class Main {
 	public static void main(String[] args) {
 		BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
 
+		// PC Development: 127.0.0.1
+		// Real OBD-II testing: 192.168.0.10
 		String obdIpAddress = "127.0.0.1";
 		int obdPort = 35000;
 		OBDReader obdr = null;
@@ -32,37 +34,51 @@ public class Main {
 
 		if (obdr != null) {
 			obdr.connectToCar();
-			while (!endProgram) {
-				try {
-					String command = in.readLine();
-					switch (command) {
-					case ("RPM"):
-						System.out.println("RPM: " + obdr.getRPM());
-						break;
-					case ("RPM-LOOP"):
-						OBDReader obdr2 = obdr;
-						new Thread(() -> {
-							while (true) {
-								System.out.println("RPM: " + obdr2.getRPM());
-							}
-						}).start();
-						break;
-					case ("ERROR-C"):
-						String[] codes = obdr.getAllErrorCodes();
-						for (String code : codes) {
-							System.out.println(code);
-						}
-						break;
-					case ("END"):
-						endProgram = true;
-					default:
-						System.out.println("Please, enter a command");
-					}
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
+			try {
+				// Waits till user enter "END" command.
+				while (!commandInterpreter(obdr, in.readLine()))
+					;
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
 		}
+	}
+
+	/*
+	 * Given a command, if the command exists execute it. Also takes care about
+	 * extra parameters.
+	 */
+	private static boolean commandInterpreter(OBDReader obdr, String cmd) {
+		boolean endProgram = false;
+		String[] commandTrimmed = cmd.split(" ");
+		switch (commandTrimmed[0]) {
+		case ("RPM"):
+			// If a parameter "LOOP" encountered on RPM command, keep reading RPM on a new
+			// Thread
+			if (commandTrimmed.length > 1 && commandTrimmed[1].equals("LOOP")) {
+				OBDReader obdr2 = obdr;
+				new Thread(() -> {
+					while (true) {
+						System.out.println("RPM: " + obdr2.getRPM());
+					}
+				}).start();
+			} else {
+				System.out.println("RPM: " + obdr.getRPM());
+			}
+			break;
+		case ("ERROR-C"):
+			String[] codes = obdr.getAllErrorCodes();
+			for (String code : codes) {
+				System.out.println(code);
+			}
+			break;
+		case ("END"):
+			endProgram = true;
+			break;
+		default:
+			System.out.println("Please, enter a command");
+		}
+		return endProgram;
 	}
 
 }
