@@ -9,7 +9,9 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 
 /**
  * The OBDReader class represents a reader for OBD-II devices. It allows
@@ -24,8 +26,7 @@ public class OBDReader {
 	private BufferedReader inputReader;
 	private String ipAddress;
 	private int port;
-	private SimpleDateFormat formatter;
-	private Date date;
+	private DateTimeFormatter dateFormatter;
 	private String logFile;
 	private int LF_ASCII = 10;
 	private int CR_ASCII = 13;
@@ -45,12 +46,11 @@ public class OBDReader {
 	OBDReader(String ipAddress, int port) {
 		this.ipAddress = ipAddress;
 		this.port = port;
-		formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
-		SimpleDateFormat formatterPath = new SimpleDateFormat("dd-MM-yyyy_HH-mm-ss");
-		date = new Date();
+		dateFormatter= DateTimeFormatter.ofPattern("dd-MM-yyyy_HH:mm:ss"); 
+		DateTimeFormatter dateFormatterPath = DateTimeFormatter.ofPattern("dd-MM-yyyy_HH-mm-ss");
 		// create dir and file
 		new File("logs").mkdirs();
-		logFile = "logs/" + formatterPath.format(date) + "_log.txt";
+		logFile = "logs/" + LocalDateTime.now().format(dateFormatterPath) + "_log.txt";
 
 		createLogFile(logFile);
 	}
@@ -69,16 +69,20 @@ public class OBDReader {
 			inputReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
 			// Test connection
-			outputWriter.println(ICCommand.RESET);
-			outputWriter.flush();
-
-			deviceName = parseRawInput(ICCommand.RESET);
+			deviceName = testODB(ICCommand.RESET);
 			System.out.println("Device: " + deviceName);
+			
+			// Retrieving car data
+			String vin = testODB(ICCommand.VIN);
+			System.out.println("VIN: " + vin);
+			
+			String ecuName = testODB(ICCommand.ECU_NAME);
+			System.out.println("ECU NAME: " + ecuName);
 
 			// Connection successful, ready to communicate with the car
 			System.out.println("Connected to the car.");
-			writeToLogFile("[CONNECTION]" + formatter.format(date) + ": [IP_" + ipAddress + "][PORT_" + port
-					+ "][DEVICE_" + deviceName + "]\n", logFile);
+			writeToLogFile("CONNECTION;" + LocalDateTime.now().format(dateFormatter) + ";IP_" + ipAddress + ";PORT_" + port + ";DEVICE_"
+					+ deviceName + "\n", logFile);
 		} catch (IOException e) {
 			System.out.println("Unable to connect to OBD Scanner, please, check IP and port.");
 		}
@@ -106,24 +110,12 @@ public class OBDReader {
 		}
 
 		// Deleting all CRLF characters to sanitize the input
-		response = response.replaceAll(Character.toString(LF_ASCII), "").replaceAll(Character.toString(CR_ASCII), "");
+		response = response.replaceAll(Character.toString(LF_ASCII), "").replaceAll(Character.toString(CR_ASCII), "")
+				.substring(code.length());
 
-		writeToLogFile("[" + code + "_RAW] " + formatter.format(date) + " RCV: ", logFile);
-		return response.substring(code.length());
-	}
+		writeToLogFile(code.replaceAll(" ", "") + "_RAW;" + LocalDateTime.now().format(dateFormatter) + ";" + response + "\n", logFile);
 
-	private String[] parseArrayRawInput(String pidCode) throws IOException {
-		String response = "";
-		int ASCIIResponse;
-		while ((ASCIIResponse = inputReader.read()) != END_COMM) {
-			response += (char) ASCIIResponse;
-		}
-
-		response = response.replaceAll(Character.toString(LF_ASCII), "").replaceAll(Character.toString(CR_ASCII), "");
-
-		String[] responseParts = response.substring(pidCode.length()).split(" ");
-
-		return responseParts;
+		return response;
 	}
 
 	/*
@@ -149,11 +141,16 @@ public class OBDReader {
 
 			// Extract and process the RPM value from the response (Only applies to ISO
 			// 9141)
-			String[] responseParts = response.split(" ");
-			String auxHexAppender = responseParts[2] + responseParts[3];
-			int decimalCode = Integer.parseInt(auxHexAppender, 16);
-			int rpm = decimalCode / 4;
-			writeToLogFile("[RPM]" + formatter.format(date) + ": " + rpm + "\n", logFile);
+			int rpm;
+			if (!response.contains("NO DATA")) {
+				String[] responseParts = response.split(" ");
+				String auxHexAppender = responseParts[2] + responseParts[3];
+				int decimalCode = Integer.parseInt(auxHexAppender, 16);
+				rpm = decimalCode / 4;
+			} else {
+				rpm = 0;
+			}
+			writeToLogFile("RPM;" + LocalDateTime.now().format(dateFormatter) + ";" + rpm + "\n", logFile);
 			return rpm;
 		} catch (IOException e) {
 			System.out.println("Error while getting data from OBD-II Reader");
@@ -177,14 +174,20 @@ public class OBDReader {
 		outputWriter.flush();
 
 		try {
-			String[] response = parseArrayRawInput(PIDCode.SPEED);
+			String response = parseRawInput(PIDCode.SPEED);
+			if (!response.contains("NO DATA")) {
+				String[] responseParts = response.split(" ");
+				response = responseParts[responseParts.length - 1];
 
-			/*
-			 * To get the speed the OBD-II only sends one byte, so getting last index
-			 * simplifies the code a little bit
-			 */
-			String speedHEX = response[response.length - 1];
-			speed = Integer.parseInt(speedHEX, 16);
+				/*
+				 * To get the speed the OBD-II only sends one byte, so getting last index
+				 * simplifies the code a little bit
+				 */
+				speed = Integer.parseInt(response, 16);
+				writeToLogFile("SPEED;" + LocalDateTime.now().format(dateFormatter) + ";" + speed + "\n", logFile);
+			} else {
+				speed = 0;
+			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -207,7 +210,7 @@ public class OBDReader {
 			// Read the response from the OBD-II reader
 			String response = parseRawInput(PIDCode.DTC);
 
-			writeToLogFile("[ERROR_CODE]" + formatter.format(date) + ": " + response + "\n", logFile);
+			writeToLogFile("DTC;" + LocalDateTime.now().format(dateFormatter) + ";" + response + "\n", logFile);
 			System.out.println(response);
 			// Check if the response indicates that no error codes are present
 			if (response.contains("NO DATA")) {
@@ -228,11 +231,11 @@ public class OBDReader {
 		return null; // Return null in case of errors
 	}
 
-	public String[] testODB(String code) throws IOException {
+	public String testODB(String code) throws IOException {
 		outputWriter.println(code);
 		outputWriter.flush();
 
-		return parseArrayRawInput(code);
+		return parseRawInput(code);
 	}
 
 	/**
@@ -264,6 +267,7 @@ public class OBDReader {
 	private void writeToLogFile(String line, String filename) {
 		try (FileWriter myWriter = new FileWriter(filename, true)) {
 			myWriter.write(line);
+			myWriter.close();
 		} catch (Exception e) {
 			System.out.println("An error occurred while writing the file.");
 			e.printStackTrace();

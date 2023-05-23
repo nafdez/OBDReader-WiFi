@@ -11,8 +11,8 @@ public class Main {
 
 		// PC Development (OBD Emulator): 127.0.0.1
 		// Real OBD-II testing: 192.168.0.10
-//		String obdIpAddress = "192.168.0.10";
-		String obdIpAddress = "127.0.0.1";
+		String obdIpAddress = "192.168.0.10";
+//		String obdIpAddress = "127.0.0.1";
 		int obdPort = 35000;
 		OBDReader obdr = null;
 
@@ -68,7 +68,7 @@ public class Main {
 				System.out.println("Speed: " + obdr.getSpeed());
 			}
 			break;
-		case ("ERROR-C"):
+		case ("DTC"):
 			String[] codes = obdr.getAllErrorCodes();
 			for (String code : codes) {
 				System.out.println(code);
@@ -77,10 +77,7 @@ public class Main {
 		case ("TEST"):
 			if (commandTrimmed.length > 1) {
 				try {
-					for (String str : obdr.testODB(commandTrimmed[1])) {
-						System.out.print(str + " ");
-					}
-					System.out.println("\n");
+					System.out.print(obdr.testODB(commandTrimmed[1]) + "\n");
 				} catch (IOException e) {
 					System.out.println(
 							"An error occurred. Please check your command or connection.\nHINT: \n\t- test 010C\n\t- test ATZ");
@@ -105,6 +102,12 @@ public class Main {
 	private static void loopInThread(OBDReader obdr, String cmd, int times) {
 		// TODO: Add duration tweak and a stop command
 		new Thread(() -> {
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 			switch (cmd) {
 			case ("RPM"):
 //				for (int i = 0; i < times; i++) {
