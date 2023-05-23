@@ -11,8 +11,8 @@ public class Main {
 
 		// PC Development (OBD Emulator): 127.0.0.1
 		// Real OBD-II testing: 192.168.0.10
-		String obdIpAddress = "192.168.0.10";
-//		String obdIpAddress = "127.0.0.1";
+//		String obdIpAddress = "192.168.0.10";
+		String obdIpAddress = "127.0.0.1";
 		int obdPort = 35000;
 		OBDReader obdr = null;
 
